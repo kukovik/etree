@@ -1003,8 +1003,28 @@ func (e *Element) setIndex(index int) {
 func (e *Element) writeTo(w *bufio.Writer, s *WriteSettings) {
 	w.WriteByte('<')
 	w.WriteString(e.FullTag())
+	depth := 0
+	attrLen := 0
+	if true { // need indent attributes
+		p := e.parent
+		for p != nil {
+			depth++
+			p = p.parent
+		}
+		for _, a := range e.Attr {
+			attrLen += len(a.FullKey()) + len(a.Value) + 2
+		}
+	}
 	for _, a := range e.Attr {
-		w.WriteByte(' ')
+		if true { // indent attribute
+			if attrLen > 60 {
+				w.WriteString("\n" + strings.Repeat(" ", 2*depth))
+			} else {
+				w.WriteByte(' ')
+			}
+		} else {
+			w.WriteByte(' ')
+		}
 		a.writeTo(w, s)
 	}
 	if len(e.Child) > 0 {
@@ -1021,7 +1041,7 @@ func (e *Element) writeTo(w *bufio.Writer, s *WriteSettings) {
 			w.WriteString(e.FullTag())
 			w.WriteByte('>')
 		} else {
-			w.Write([]byte{'/', '>'})
+			w.Write([]byte{' ', '/', '>'})
 		}
 	}
 }
