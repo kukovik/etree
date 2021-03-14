@@ -70,15 +70,30 @@ type WriteSettings struct {
 	// ("\r\n") as a new-line delimiter instead of just a linefeed ("\n").
 	// This is useful on Windows-based systems.
 	UseCRLF bool
+
+	// If WrapAttributes > 0 output one attribute per line if total attibutes
+	// lenght is more than WrapAttributes characters. Default: 0
+	WrapAttributes int
+
+	// WrappedAttributeIndent is added to Element indent if atrributes are
+	// wrapped (see WrapAttributes). Default: ""
+	WrappedAttributeIndent string
+
+	// SpaceBeforeSlash ouput space before slash in empty element
+	// Default: false
+	SpaceBeforeSlash bool
 }
 
 // newWriteSettings creates a default WriteSettings record.
 func newWriteSettings() WriteSettings {
 	return WriteSettings{
-		CanonicalEndTags: false,
-		CanonicalText:    false,
-		CanonicalAttrVal: false,
-		UseCRLF:          false,
+		CanonicalEndTags:       false,
+		CanonicalText:          false,
+		CanonicalAttrVal:       false,
+		UseCRLF:                false,
+		WrapAttributes:         0,
+		WrappedAttributeIndent: "",
+		SpaceBeforeSlash:       false,
 	}
 }
 
@@ -1003,8 +1018,30 @@ func (e *Element) setIndex(index int) {
 func (e *Element) writeTo(w *bufio.Writer, s *WriteSettings) {
 	w.WriteByte('<')
 	w.WriteString(e.FullTag())
+	attributeIndent := ""
+	attrLen := 0
+	if s.WrapAttributes > 0 {
+		p := e.parent
+		if e.Index() > 0 {
+			t := p.Child[e.Index()-1]
+			if cd, isCharData := t.(*CharData); isCharData {
+				attributeIndent = cd.Data + s.WrappedAttributeIndent
+			}
+		}
+		for _, a := range e.Attr {
+			attrLen += len(a.FullKey()) + len(a.Value) + 3 // =""
+		}
+	}
 	for _, a := range e.Attr {
-		w.WriteByte(' ')
+		if s.WrapAttributes > 0 {
+			if attrLen > s.WrapAttributes {
+				w.WriteString(attributeIndent)
+			} else {
+				w.WriteByte(' ')
+			}
+		} else {
+			w.WriteByte(' ')
+		}
 		a.writeTo(w, s)
 	}
 	if len(e.Child) > 0 {
@@ -1021,6 +1058,9 @@ func (e *Element) writeTo(w *bufio.Writer, s *WriteSettings) {
 			w.WriteString(e.FullTag())
 			w.WriteByte('>')
 		} else {
+			if s.SpaceBeforeSlash {
+				w.WriteByte(' ')
+			}
 			w.Write([]byte{'/', '>'})
 		}
 	}
